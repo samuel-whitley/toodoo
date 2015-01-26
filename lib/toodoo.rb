@@ -221,7 +221,6 @@ class TooDooApp
   end
 end
 
-binding.pry
 
 todos = TooDooApp.new
 todos.run
