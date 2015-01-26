@@ -5,7 +5,18 @@ require 'pry'
 
 module Toodoo
   class User < ActiveRecord::Base
+  has_many :todo_lists, dependent: :destroy
   end
+  
+  class TodoList < ActiveRecord::Base
+  belongs_to :user
+  has_many :todo_items, dependent: :destroy
+  end
+  
+  class TodoItem < ActiveRecord::Base
+  belongs_to :todo_list
+  end
+
 end
 
 class TooDooApp
@@ -51,6 +62,8 @@ class TooDooApp
   end
 
   def new_todo_list
+     title = ask("What is the title of your new todo list?")
+     @todos = @user.todo_lists.create(:title => title)
     # TODO: This should create a new todo list by getting input from the user.
     # The user should not have to tell you their id.
     # Create the todo list in the database and update the @todos variable.
@@ -58,6 +71,10 @@ class TooDooApp
 
   def pick_todo_list
     choose do |menu|
+        menu.prompt = "please pick a todo list item"
+        @user.todo_lists.find_each do |u|
+        menu.choice(u.title, "Pick a todo list item") {@todos = u}
+      end
       # TODO: This should get get the todo lists for the logged in user (@user).
       # Iterate over them and add a menu.choice line as seen under the login method's
       # find_each call. The menu choice block should set @todos to the todo list.
@@ -70,23 +87,61 @@ class TooDooApp
   end
 
   def delete_todo_list
+    choose do |menu|
+    menu.prompt = "Which todo list do you want to destroy?"
+    @user.todo_lists.find_each do |u|
+    menu.choice(u.title,) {@todos = u}
+      end
+    end
+    choices = 'yn'
+    delete = ask("Do you want to delete your current todo list?") do |q|
+      q.validate =/\A[#{choices}]\Z/
+      q.character = true
+      q.confirm = true
+    end
+    if delete == 'y'
+      @todos.destroy
+      @todos = nil
+    end
+    
     # TODO: This should confirm that the user wants to delete the todo list.
     # If they do, it should destroy the current todo list and set @todos to nil.
   end
 
   def new_task
+    task = ask("what task would you like to add to your list")
+    @todos.todo_items.create(:name => task, :complete => false, )
+      
+    
     # TODO: This should create a new task on the current user's todo list.
     # It must take any necessary input from the user. A due date is optional.
   end
 
   ## NOTE: For the next 3 methods, make sure the change is saved to the database.
   def mark_done
+        choose do |menu|
+        menu.prompt = "please pick a task that you wish to mark complete"
+        @todos.todo_items.where(complete: false).each do |l|
+        menu.choice(l.name, "Pick a todo list item that you have finished") {l.update(complete: true)}
+        l.save
+      end
+      menu.choice(:back)
+    end
+    
     # TODO: This should display the todos on the current list in a menu
     # similarly to pick_todo_list. Once they select a todo, the menu choice block
     # should update the todo to be completed.
   end
 
   def change_due_date
+    choose do |menu|
+        menu.prompt = "Pick a task's due date to be changed"
+        @todos.todo_items.find_each do |u|
+        menu.choice(u.name, "Pick a todo list item") {u.update(due_date: ask("what is the due date of this project?"))}
+      u.save
+      end
+      menu.choice(:back)
+    end
     # TODO: This should display the todos on the current list in a menu
     # similarly to pick_todo_list. Once they select a todo, the menu choice block
     # should update the due date for the todo. You probably want to use
@@ -94,13 +149,32 @@ class TooDooApp
   end
 
   def edit_task
+    choose do |menu|
+        menu.prompt = "please pick a todo list item"
+        @todos.todo_items.find_each do |u|
+        menu.choice(u.name, "Pick a todo list item") {u.update(name: ask("What do you want to rename this task?"))}
+        u.save
+        end
+        menu.choice(:back)
+      end
+
     # TODO: This should display the todos on the current list in a menu
     # similarly to pick_todo_list. Once they select a todo, the menu choice block
     # should change the name of the todo.
   end
 
   def show_overdue
-    # TODO: This should print a sorted list of todos with a due date *older*
+    incomplete = @todos.todo_items.where(complete: false)
+    incomplete.order(:name, due_date: :desc).each do |x|
+      if x.due_date == nil
+        puts "#{x.name} --- due date not set"
+      else
+        puts "#{x.name} --- #{x.due_date}" 
+      end
+     end
+    
+
+     # TODO: This should print a sorted list of todos with a due date *older*
     # than `Date.now`. They should be formatted as follows:
     # "Date -- Eat a Cookie"
     # "Older Date -- Play with Puppies"
